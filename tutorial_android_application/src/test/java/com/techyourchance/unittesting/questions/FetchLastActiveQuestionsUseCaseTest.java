@@ -1,9 +1,11 @@
 package com.techyourchance.unittesting.questions;
 
+import com.techyourchance.unittesting.networking.StackoverflowApi;
 import com.techyourchance.unittesting.networking.questions.FetchLastActiveQuestionsEndpoint;
 import com.techyourchance.unittesting.networking.questions.QuestionSchema;
-import com.techyourchance.unittesting.testdata.QuestionsTestData;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -16,80 +18,79 @@ import java.util.LinkedList;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentCaptor.*;
 import static org.mockito.Mockito.verify;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FetchLastActiveQuestionsUseCaseTest {
 
-    // region constants ----------------------------------------------------------------------------
-    private static final List<Question> QUESTIONS = QuestionsTestData.getQuestions();
-    // endregion constants -------------------------------------------------------------------------
-
-    // region helper fields ------------------------------------------------------------------------
-    private EndpointTd mEndpointTd;
-    @Mock FetchLastActiveQuestionsUseCase.Listener mListener1;
-    @Mock FetchLastActiveQuestionsUseCase.Listener mListener2;
-
-    @Captor ArgumentCaptor<List<Question>> mQuestionsCaptor;
-    // endregion helper fields ---------------------------------------------------------------------
-
     FetchLastActiveQuestionsUseCase SUT;
 
+    EndpointTd endpointTd;
+
+    @Mock FetchLastActiveQuestionsUseCase.Listener listener1;
+    @Mock FetchLastActiveQuestionsUseCase.Listener listener2;
+
+    @Captor ArgumentCaptor<List<Question>> aQuestionsCaptor;
+
     @Before
-    public void setup() throws Exception {
-        mEndpointTd = new EndpointTd();
-        SUT = new FetchLastActiveQuestionsUseCase(mEndpointTd);
+    public void setUp() throws Exception {
+        endpointTd =  new EndpointTd();
+        SUT = new FetchLastActiveQuestionsUseCase(endpointTd);
     }
 
     @Test
     public void fetchLastActiveQuestionsAndNotify_success_listenersNotifiedWithCorrectData() throws Exception {
-        // Arrange
         success();
-        SUT.registerListener(mListener1);
-        SUT.registerListener(mListener2);
-        // Act
+        SUT.registerListener(listener1);
+        SUT.registerListener(listener2);
         SUT.fetchLastActiveQuestionsAndNotify();
-        // Assert
-        verify(mListener1).onLastActiveQuestionsFetched(mQuestionsCaptor.capture());
-        verify(mListener2).onLastActiveQuestionsFetched(mQuestionsCaptor.capture());
-        List<List<Question>> questionLists = mQuestionsCaptor.getAllValues();
-        assertThat(questionLists.get(0), is(QUESTIONS));
-        assertThat(questionLists.get(1), is(QUESTIONS));
+        verify(listener1).onLastActiveQuestionsFetched(
+                aQuestionsCaptor.capture()
+        );
+        verify(listener2).onLastActiveQuestionsFetched(
+                aQuestionsCaptor.capture()
+        );
+        List<Question> qList1 = aQuestionsCaptor.getAllValues().get(0);
+        List<Question> qList2 = aQuestionsCaptor.getAllValues().get(1);
+        assertThat(qList1,is(getExpectedQuestions()));
+        assertThat(qList2,is(getExpectedQuestions()));
     }
 
     @Test
     public void fetchLastActiveQuestionsAndNotify_failure_listenersNotifiedOfFailure() throws Exception {
-        // Arrange
         failure();
-        SUT.registerListener(mListener1);
-        SUT.registerListener(mListener2);
-        // Act
+        SUT.registerListener(listener1);
+        SUT.registerListener(listener2);
         SUT.fetchLastActiveQuestionsAndNotify();
-        // Assert
-        verify(mListener1).onLastActiveQuestionsFetchFailed();
-        verify(mListener2).onLastActiveQuestionsFetchFailed();
-    }
-
-    // region helper methods -----------------------------------------------------------------------
-
-    private void success() {
-        // currently no-op
+        verify(listener1).onLastActiveQuestionsFetchFailed();
+        verify(listener2).onLastActiveQuestionsFetchFailed();
     }
 
     private void failure() {
-        mEndpointTd.mFailure = true;
+        endpointTd.failure = true;
     }
 
-    // endregion helper methods --------------------------------------------------------------------
+    private List<Question> getExpectedQuestions() {
+        List<Question> questions = new LinkedList<>();
+        questions.add(new Question("id1","title1"));
+        questions.add(new Question("id2","title2"));
+        return questions;
+    }
 
-    // region helper classes -----------------------------------------------------------------------
+    private void success() {
+        //no - op
+    }
+
     private static class EndpointTd extends FetchLastActiveQuestionsEndpoint {
 
-        public boolean mFailure;
+        public boolean failure;
 
         public EndpointTd() {
             super(null);
@@ -97,16 +98,16 @@ public class FetchLastActiveQuestionsUseCaseTest {
 
         @Override
         public void fetchLastActiveQuestions(Listener listener) {
-            if (mFailure) {
+            if(failure){
                 listener.onQuestionsFetchFailed();
-            } else {
+            }else{
                 List<QuestionSchema> questionSchemas = new LinkedList<>();
-                questionSchemas.add(new QuestionSchema("title1", "id1", "body1"));
-                questionSchemas.add(new QuestionSchema("title2", "id2", "body2"));
+                questionSchemas.add(new QuestionSchema("title1","id1","body1"));
+                questionSchemas.add(new QuestionSchema("title2","id2","body2"));
                 listener.onQuestionsFetched(questionSchemas);
             }
+
         }
     }
-    // endregion helper classes --------------------------------------------------------------------
 
 }
